@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# files
+index.npy
+faceDescriptors.npy
+settings.json
+

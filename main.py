@@ -1,159 +1,129 @@
-import os,random,glob
+import os
+import glob
 import dlib
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-import time
 
 faceDetector = dlib.get_frontal_face_detector()
-shapePredictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
-faceRecognizer = dlib.face_recognition_model_v1('dlib_face_recognition_resnet_model_v1.dat')
-
-##########################################################################################################################
-
-# Root folder of the dataset
-faceDatasetFolder = 'celeb_mini'
-# Label -> Name Mapping file
-labelMap = np.load("celeb_mapping.npy", allow_pickle=True).item()
-
-##########################################################################################################################
-
-# Each subfolder has images of a particular celeb
-subfolders = os.listdir(faceDatasetFolder)
-# Let us choose a random folder and display all images
-random_folder = random.choice(subfolders)
-# Also find out the name of the celeb from the folder name and folder-> name mapping dictionary loaded earlier
-celebname = labelMap[random_folder]
-# Load all images in the subfolder
-imagefiles = os.listdir(os.path.join(faceDatasetFolder, random_folder))
-# Read each image and display along with the filename and celeb name
-# for file in imagefiles:
-# #     Get full path of each image file
-#     fullPath = os.path.join(faceDatasetFolder,random_folder,file)
-#     im = cv2.imread(fullPath)
-#     plt.imshow(im[:,:,::-1])
-#     plt.show()
-# #     Also print the filename and celeb name
-#     print("File path = {}".format(fullPath))
-#     print("Celeb Name: {}".format(celebname))
-
-##########################################################################################################################
-
-index = {}
-i = 0
-faceDescriptors = None
-
-for folder in subfolders:
-    imagefiles = os.listdir(os.path.join(faceDatasetFolder, folder))
-
-    for file in imagefiles:
-        imagePath = os.path.join(faceDatasetFolder, folder, file)
-        # print("processing: {}".format(imagePath))
-
-        img = cv2.imread(imagePath)
-
-        faces = faceDetector(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+shapePredictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+faceRecognizer = dlib.face_recognition_model_v1(
+    "dlib_face_recognition_resnet_model_v1.dat"
+)
 
 
-        print("{} Face(s) found".format(len(faces)))
-        # Now process each face we found
-        for k, face in enumerate(faces):
+def inrole_data(faceDetector, shapePredictor, faceRecognizer):
+    index = {}
+    i = 0
+    faceDescriptors = None
 
-            # Find facial landmarks for each detected face
-            shape = shapePredictor(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), face)
+    for images in os.listdir("celeb_mini"):
+        imagefiles = os.listdir(os.path.join("celeb_mini", images))
 
-             # convert landmarks from Dlib's format to list of (x, y) points
-            landmarks = [(p.x, p.y) for p in shape.parts()]
+        for image in imagefiles:
+            imagePath = os.path.join("celeb_mini", images, image)
 
-            # Compute face descriptor using neural network defined in Dlib.
-            # It is a 128D vector that describes the face in img identified by shape.
-            faceDescriptor = faceRecognizer.compute_face_descriptor(img, shape)
+            img = cv2.imread(imagePath)
+            imDli = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-            # Convert face descriptor from Dlib's format to list, then a NumPy array
+            faces = faceDetector(imDli)
+
+            # Now process each face we found
+            for face in faces:
+                # Find facial landmarks for each detected face
+                shape = shapePredictor(imDli, face)
+                # Compute face descriptor using neural network defined in Dlib.
+                faceDescriptor = faceRecognizer.compute_face_descriptor(img, shape)
+
+                # Convert face descriptor from Dlib's format to list, then a NumPy array
+                faceDescriptorList = [x for x in faceDescriptor]
+                faceDescriptorNdarray = np.asarray(faceDescriptorList, dtype=np.float64)
+                faceDescriptorNdarray = faceDescriptorNdarray[np.newaxis, :]
+
+                # Stack face descriptors (1x128) for each face in images, as rows
+                if faceDescriptors is None:
+                    faceDescriptors = faceDescriptorNdarray
+                else:
+                    faceDescriptors = np.concatenate(
+                        (faceDescriptors, faceDescriptorNdarray), axis=0
+                    )
+
+                # person name corresponding to face descriptors stored in NumPy Array
+                index[i] = np.load("celeb_mapping.npy", allow_pickle=True).item()[
+                    images
+                ]
+                i += 1
+
+    np.save("index.npy", index)
+    np.save("faceDescriptors.npy", faceDescriptors)
+
+
+def lookalike(faceDetector, shapePredictor, faceRecognizer):
+    #
+    faceDescriptors = np.load("faceDescriptors.npy")
+    index = np.load("index.npy", allow_pickle="TRUE").item()
+
+    # read image
+    testImages = glob.glob("test-images/*.jpg")
+
+    for image in testImages:
+        im = cv2.imread(image)
+        imDli = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+
+        faces = faceDetector(imDli)
+
+        for face in faces:
+            shape = shapePredictor(imDli, face)
+
+            faceDescriptor = faceRecognizer.compute_face_descriptor(im, shape)
+
             faceDescriptorList = [x for x in faceDescriptor]
             faceDescriptorNdarray = np.asarray(faceDescriptorList, dtype=np.float64)
             faceDescriptorNdarray = faceDescriptorNdarray[np.newaxis, :]
 
-            # Stack face descriptors (1x128) for each face in images, as rows
-            if faceDescriptors is None:
-                faceDescriptors = faceDescriptorNdarray
+            distances = np.linalg.norm(faceDescriptors - faceDescriptorNdarray, axis=1)
+
+            argmin = np.argmin(distances)
+            minDistance = distances[argmin]
+
+            if minDistance <= 0.8:
+                label = index[argmin]
             else:
-                faceDescriptors = np.concatenate((faceDescriptors, faceDescriptorNdarray), axis=0)
+                label = "unknown"
 
-            # save the label for this face in index. We will use it later to identify
-             # person name corresponding to face descriptors stored in NumPy Array
-            index[i] = labelMap[folder]
-            i += 1
+            celeb_name = label
 
+            for images in os.listdir("celeb_mini"):
+                imagefiles = os.listdir(os.path.join("celeb_mini", images))
 
+                if (
+                    np.load("celeb_mapping.npy", allow_pickle=True).item()[images]
+                    == celeb_name
+                ):
+                    for image in imagefiles:
+                        img_cele = cv2.imread(os.path.join("celeb_mini", images, image))
+                        img_cele = cv2.cvtColor(img_cele, cv2.COLOR_BGR2RGB)
+                        break
 
+        plt.subplot(121)
+        plt.imshow(imDli)
+        plt.title("test img")
 
-#         print("{} Face(s) found".format(len(faces)))
-#         for k, face in enumerate(faces):
-
-#             shape = shapePredictor(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), face)
-
-#             # landmarks = [(p.x, p.y) for p in shape.parts()]
-
-#             faceDescriptor = faceRecognizer.compute_face_descriptor(img, shape)
-
-#             faceDescriptorList = [x for x in faceDescriptor]
-#             # print(faceDescriptorList)
-#             faceDescriptorNdarray = np.asarray(faceDescriptorList, dtype=np.float64)
-#             faceDescriptorNdarray = faceDescriptorNdarray[np.newaxis, :]
-
-#             if faceDescriptor is None:
-#                 faceDescriptors = faceDescriptorNdarray
-#             else:
-#                 faceDescriptors =  np.concatenate((faceDescriptors, faceDescriptorNdarray), axis=0)
-
-#             index[i] = labelMap[folder]
-#             i += 1
-        
+        plt.subplot(122)
+        plt.imshow(img_cele)
+        plt.title("Celeb Look-Alike={}".format(celeb_name))
+        plt.show()
 
 
+def main():
 
-        
+    if not os.path.exists("index.npy") or not os.path.exists("faceDescriptors.npy"):
+        print("building face descriptors")
+        inrole_data(faceDetector, shapePredictor, faceRecognizer)
 
-# index = {}
-# i = 0
-# faceDescriptors = None
+    lookalike(faceDetector, shapePredictor, faceRecognizer)
 
-# for imagePath in imagePaths:
-#   print("processing: {}".format(imagePath))
-#   # read image and convert it to RGB
-#   img = cv2.imread(imagePath)
 
-#   # detect faces in image
-#   faces = faceDetector(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-
-#   print("{} Face(s) found".format(len(faces)))
-#   # Now process each face we found
-#   for k, face in enumerate(faces):
-
-#     # Find facial landmarks for each detected face
-#     shape = shapePredictor(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), face)
-
-#     # convert landmarks from Dlib's format to list of (x, y) points
-#     landmarks = [(p.x, p.y) for p in shape.parts()]
-
-#     # Compute face descriptor using neural network defined in Dlib.
-#     # It is a 128D vector that describes the face in img identified by shape.
-#     faceDescriptor = faceRecognizer.compute_face_descriptor(img, shape)
-
-#     # Convert face descriptor from Dlib's format to list, then a NumPy array
-#     faceDescriptorList = [x for x in faceDescriptor]
-#     faceDescriptorNdarray = np.asarray(faceDescriptorList, dtype=np.float64)
-#     faceDescriptorNdarray = faceDescriptorNdarray[np.newaxis, :]
-
-#     # Stack face descriptors (1x128) for each face in images, as rows
-#     if faceDescriptors is None:
-#       faceDescriptors = faceDescriptorNdarray
-#     else:
-#       faceDescriptors = np.concatenate((faceDescriptors, faceDescriptorNdarray), axis=0)
-
-#     # save the label for this face in index. We will use it later to identify
-#     # person name corresponding to face descriptors stored in NumPy Array
-#     index[i] = nameLabelMap[imagePath]
-#     i += 1
+if __name__ == "__main__":
+    main()
