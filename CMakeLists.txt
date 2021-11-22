@@ -7,11 +7,11 @@ string(REPLACE " " "_" ProjectId ${ProjectId})
 project(${ProjectId} LANGUAGES CXX)
 
 # # can be used to fetch dependencies
-# include(FetchContent)
-# FetchContent_Declare(dlib
-#     GIT_REPOSITORY https://github.com/davisking/dlib.git
-# )
-# FetchContent_MakeAvailable(dlib)
+include(FetchContent)
+FetchContent_Declare(dlib
+    GIT_REPOSITORY https://github.com/davisking/dlib.git
+)
+FetchContent_MakeAvailable(dlib)
 
 # vscode
 include(CTest)
@@ -19,10 +19,10 @@ enable_testing()
 
 # find OpenCV and dlib on current computer
 find_package(OpenCV REQUIRED)
-find_package(dlib REQUIRED)
+# find_package(dlib REQUIRED)
 
 # set cmak standards
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # add files to project
