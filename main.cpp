@@ -7,9 +7,12 @@
 #include <dlib/image_processing/frontal_face_detector.h>
 #include <dlib/opencv.h>
 #include <dlib/string.h>
-#include <iostream> // stdin and stdout
+#include <filesystem> // for ittering through the filesystem
+#include <iostream>   // stdin and stdout
 #include <opencv2/imgproc.hpp>
 #include <opencv2/opencv.hpp>
+#include <string>
+#include <typeinfo>
 
 using namespace cv;
 using namespace std;
@@ -45,92 +48,78 @@ using anet_type = loss_metric<fc_no_bias<
         3, 3, 2, 2,
         relu<affine<con<32, 7, 7, 2, 2, input_rgb_image_sized<150>>>>>>>>>>>>>;
 // ----------------------------------------------------------------------------------------
-// function for managing directories
-void listdir(string dirName, std::vector<string> &folderNames,
-             std::vector<string> &fileNames, std::vector<string> &symlinkNames);
 
-// function for managing files extensions
-void filterFiles(string dirPath, std::vector<string> &fileNames,
-                 std::vector<string> &filteredFilePaths, string ext,
-                 std::vector<int> &imageLabels, int index);
+// function for inroling the images
+void inrole_data(frontal_face_detector faceDetector,
+                 shape_predictor shapePredictor, anet_type faceRecognizer);
 
 // ----------------------------------------------------------------------------------------
+
 // Main function
 int main() {
+
+  // testPoint
+  cout << "Starting..." << endl;
+
   // Set up the faceDetector
   frontal_face_detector faceDetector = get_frontal_face_detector();
   // Set up the shapePredictor
   String face68 = "/home/matthew/DoppelGanger-Find-your-Celebrity-Look-Alike/"
                   "shape_predictor_68_face_landmarks.dat";
-  shape_predictor landmarkDetector;
-  deserialize(face68) >> landmarkDetector;
+  shape_predictor shapePredictor;
+  deserialize(face68) >> shapePredictor;
   // Set up the faceRecognizer
-  anet_type net;
+  anet_type faceRecognizer;
   deserialize("/home/matthew/DoppelGanger-Find-your-Celebrity-Look-Alike/"
               "dlib_face_recognition_resnet_model_v1.dat") >>
-      net;
+      faceRecognizer;
 
-  cout
-      << "Successfully loading faceDetector, shapePredictor and faceRecognizer!"
-      << endl;
+  // testPoint
+  cout << "1 Successfully loading faceDetector, shapePredictor and "
+          "faceRecognizer!"
+       << endl;
 
-  // Start ----------------------------------------------------------------
-  // Load data for enrollment
-  string faceDatasetFolder =
-      "/home/matthew/DoppelGanger-Find-your-Celebrity-Look-Alike/celeb_mini";
-  std::vector<string> subfolders, fileNames, symlinkNames;
-  listdir(faceDatasetFolder, subfolders, fileNames, symlinkNames);
+  inrole_data(faceDetector, shapePredictor, faceRecognizer);
+
+  // End ----------------------------------------------------------------
+
+  // testPoint
+  // cout << "number of face descriptors " << faceDescriptors.size() << endl;
+  // cout << "number of face labels " << faceLabels.size() << endl;
+
+  // testPoint
+  cout << "Worked to the end of the file" << endl;
 
   return 0;
 };
 
-// Reads files, folders and symbolic links in a directory
-void listdir(string dirName, std::vector<string> &folderNames,
-             std::vector<string> &fileNames,
-             std::vector<string> &symlinkNames) {
-  DIR *dir;
-  struct dirent *ent;
+void inrole_data(frontal_face_detector faceDetector,
+                 shape_predictor shapePredictor, anet_type faceRecognizer)
+//     """This function creates a face descriptors of (1x128) for each face
+//     in the images folder and names files and stores them as face descriptors
+//     and labels.
+{
+  // create a dictionary to uses for containing file label and person name
+  std::map<int, string> index;
+  // create a vector for storing face descriptors
+  std::vector<matrix<float, 0, 1>> faceDescriptors;
 
-  if ((dir = opendir(dirName.c_str())) != NULL) {
-    /* print all the files and directories within directory */
-    while ((ent = readdir(dir)) != NULL) {
-      // ignore . and ..
-      if ((strcmp(ent->d_name, ".") == 0) || (strcmp(ent->d_name, "..") == 0)) {
-        continue;
-      }
-      string temp_name = ent->d_name;
-      switch (ent->d_type) {
-      case DT_REG:
-        fileNames.push_back(temp_name);
-        break;
-      case DT_DIR:
-        folderNames.push_back(dirName + "/" + temp_name);
-        break;
-      case DT_LNK:
-        symlinkNames.push_back(temp_name);
-        break;
-      default:
-        break;
-      }
-      //   cout << temp_name << endl;
-    }
-    // sort all the files
-    std::sort(folderNames.begin(), folderNames.end());
-    std::sort(fileNames.begin(), fileNames.end());
-    std::sort(symlinkNames.begin(), symlinkNames.end());
-    closedir(dir);
-  }
-}
+  std::cout << "directory_iterator" << endl;
 
-// filter files having extension ext i.e. jpg
-void filterFiles(string dirPath, std::vector<string> &fileNames,
-                 std::vector<string> &filteredFilePaths, string ext,
-                 std::vector<int> &imageLabels, int index) {
-  for (int i = 0; i < fileNames.size(); i++) {
-    string fname = fileNames[i];
-    if (fname.find(ext, (fname.length() - ext.length())) != std::string::npos) {
-      filteredFilePaths.push_back(dirPath + "/" + fname);
-      imageLabels.push_back(index);
-    }
-  }
+  // Start --------------------------------------------------------------
+  string celebFolder =
+      "/home/matthew/DoppelGanger-Find-your-Celebrity-Look-Alike/celeb_mini";
+  for (auto const &images : std::filesystem::directory_iterator{celebFolder})
+    for (auto const &image : std::filesystem::directory_iterator{images}) {
+      // load the image using the Dlib library
+      matrix<rgb_pixel> img;
+      load_image(img, image.path());
+
+      // run face detection
+      // Stoped Here ****************************************************
+    };
+
+  // End ----------------------------------------------------------------
+
+  cout << "function worked" << endl;
 }
