@@ -102,7 +102,7 @@ void inrole_data(frontal_face_detector faceDetector,
 {
 
   string celebFolder =
-      "/home/matthew/DoppelGanger-Find-your-Celebrity-Look-Alike/celeb_mini2";
+      "/home/matthew/DoppelGanger-Find-your-Celebrity-Look-Alike/celeb_minicpp";
   int x = 0;
   // for writing to disk
   const string descriptorsPath =
